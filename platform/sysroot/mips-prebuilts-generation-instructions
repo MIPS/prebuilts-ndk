@@ -1,0 +1,66 @@
+1. Download code from AOSP using manifest file: manifest_4634436.xml
+Manifest file has been generated from repo.prop file.
+
+2. Apply additional changes:
+git fetch https://android.googlesource.com/platform/system/netd refs/changes/65/633365/1 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/art refs/changes/85/633385/2 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/art refs/changes/77/606577/1 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/art refs/changes/66/634266/3 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/art refs/changes/25/635025/1 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/art refs/changes/71/5171/10 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/art refs/changes/28/5728/1 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/build refs/changes/59/5159/4 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/build/soong refs/changes/56/4656/9 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/prebuilts/ndk refs/changes/54/4654/4 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/external/strace refs/changes/97/436897/3 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/bionic refs/changes/33/5733/1 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/bionic refs/changes/78/474978/1 && git cherry-pick FETCH_HEAD
+git fetch https://android.googlesource.com/platform/external/aac refs/changes/16/511016/1 && git cherry-pick FETCH_HEAD
+git fetch ssh://electric.cloud@mipsia.review.mips.com:29418/platform/prebuilts/clang/host/linux-x86 refs/changes/45/5545/5 && git cherry-pick FETCH_HEAD
+
+2.1. We need to revert two changes manually: 
+cd <ANDROID_ROOT>/build/soong
+revert change: "Skip MIPS headers when generating NDK prebuilts", commit id: cdb710fed5ad78ee4c41d11b476f7f4edcf1ee78
+revert change: "Stop building MIPS ABIs for the NDK", commit id: f45c6934c84ba3432bffb20dcf4b5bdf0c0dda2e
+
+2.2. Manual change for compiling for mips[32|64]r6:
+$ cd <ANDROID_ROOT>/build/soong
+diff --git a/android/arch.go b/android/arch.go
+index c0c5830..5c4e906 100644
+--- a/android/arch.go
++++ b/android/arch.go
+@@ -971,7 +971,7 @@ func getNdkAbisConfig() []archConfig {
+        return []archConfig{
+                {"arm", "armv7-a", "", []string{"armeabi"}},
+                {"arm64", "armv8-a", "", []string{"arm64-v8a"}},
+-               {"mips", "mips32-fp", "", []string{"mips"}},
++               {"mips", "mips32r6", "", []string{"mips"}},
+                {"mips64", "mips64r6", "", []string{"mips64"}},
+                {"x86", "", "", []string{"x86"}},
+                {"x86_64", "", "", []string{"x86_64"}},
+
+2.3. Manual change for compiling for mips32r1:
+$ cd <ANDROID_ROOT>/build/soong
+diff --git a/android/arch.go b/android/arch.go
+index c0c5830..8324a05 100644
+--- a/android/arch.go
++++ b/android/arch.go
+@@ -972,7 +972,6 @@ func getNdkAbisConfig() []archConfig {
+                {"arm", "armv7-a", "", []string{"armeabi"}},
+                {"arm64", "armv8-a", "", []string{"arm64-v8a"}},
+                {"mips", "mips32-fp", "", []string{"mips"}},
+-               {"mips64", "mips64r6", "", []string{"mips64"}},
+                {"x86", "", "", []string{"x86"}},
+                {"x86_64", "", "", []string{"x86_64"}},
+        }
+
+
+3. Build instructions:
+$ cd $ANDROID_BUILD_TOP
+$ export OUT_DIR=outndk
+$ ./build/soong/scripts/build-ndk-prebuilts.sh
+
+Shared libs location: $OUT_DIR/soong/ndk/platforms
+Static libs location: $OUT_DIR/soong/ndk/sysroot/usr/lib/mips*el-
+
+NOTE: For generating mips32r6 and mips64r6 static and shared libs perform steps: 1, 2, 2.1, 2.2 and 3. For generating mips32r1 static and shared libs perform steps: 1, 2, 2.1, 2.3 and 3.
