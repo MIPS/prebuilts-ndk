@@ -22,7 +22,6 @@ import shutil
 import subprocess
 import textwrap
 
-
 THIS_DIR = os.path.realpath(os.path.dirname(__file__))
 
 
@@ -68,22 +67,43 @@ def remove_old_release(install_dir):
         shutil.rmtree(install_dir)
 
 
-def install_new_release(branch, build, install_dir):
-    os.makedirs(install_dir)
+def install_new_release(branch, build, install_dir, ndk_archive, abi):
+    if abi == None:
+        os.makedirs(install_dir)
 
     artifact_pattern = 'android-ndk-*.tar.bz2'
     logger().info('Fetching %s from %s (artifacts matching %s)', build, branch,
                   artifact_pattern)
-    fetch_artifact(branch, build, artifact_pattern)
+
+    if ndk_archive == None:
+        fetch_artifact(branch, build, artifact_pattern)
+    else:
+        shutil.copy2(ndk_archive, './')
+
     artifacts = glob.glob('android-ndk-*.tar.bz2')
     try:
         assert len(artifacts) == 1
         artifact = artifacts[0]
 
+        platforms_filter = ''
+        sources_filter = ''
+        if abi == 'mips32r6':
+            platforms_filter = '/*/libr6/*'
+            sources_filter = '/*/mips32r6/*'
+        elif abi == 'mips':
+            platforms_filter = '/*/arch-mips/*'
+            sources_filter = '/*/mips/*'
+        elif abi == 'mips64':
+            platforms_filter = '/*/arch-mips64/*'
+            sources_filter = '/*/mips64/*'
+        elif abi == 'allmips':
+            platforms_filter = '/*/arch-mips*'
+            sources_filter = '/*/mips*'
+
         logger().info('Extracting release')
         cmd = ['tar', 'xf', artifact, '-C', install_dir, '--wildcards',
-               '--strip-components=1', '*/platforms', '*/sources',
-               '*/source.properties']
+               '--strip-components=1', '*/platforms' + platforms_filter,
+               '*/sources' + sources_filter, '*/source.properties']
         check_call(cmd)
     finally:
         for artifact in artifacts:
@@ -105,7 +125,9 @@ def remove_unneeded_files(install_dir):
 
     remove_stls = ['gabi++', 'gnu-libstdc++', 'stlport']
     for stl in remove_stls:
-        shutil.rmtree(os.path.join(install_dir, 'sources/cxx-stl', stl))
+        path = os.path.join(install_dir, 'sources/cxx-stl', stl)
+        if os.path.exists(path):
+            shutil.rmtree(path)
 
 
 def make_symlinks(install_dir):
@@ -131,7 +153,7 @@ def make_symlinks(install_dir):
 
 def commit(branch, build, install_dir):
     logger().info('Making commit')
-    check_call(['git', 'add', install_dir])
+    check_call(['git', 'add', '-A', install_dir])
     message = textwrap.dedent("""\
         Update NDK prebuilts to build {build}.
 
@@ -141,6 +163,12 @@ def commit(branch, build, install_dir):
 
 def get_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-a', '--abi', default=None,
+        help='ABIs [mips|mips32r6|mips64|allmips|all] to update.')
+    parser.add_argument(
+        '-n', '--ndk-archive', default=None,
+        help='Path to NDK android-ndk-*.tar.bz2 archive.')
     parser.add_argument(
         '-b', '--branch', default='master-ndk',
         help='Branch to pull build from.')
@@ -170,8 +198,9 @@ def main():
 
     if not args.use_current_branch:
         start_branch(args.build)
-    remove_old_release(install_dir)
-    install_new_release(args.branch, args.build, install_dir)
+    if args.abi == None:
+        remove_old_release(install_dir)
+    install_new_release(args.branch, args.build, install_dir, args.ndk_archive, args.abi)
     remove_unneeded_files(install_dir)
     make_symlinks(install_dir)
     commit(args.branch, args.build, install_dir)
