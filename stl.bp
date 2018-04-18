@@ -5,6 +5,25 @@ libcxx_includes =  [
 ]
 
 ndk_prebuilt_static_stl {
+    name: "ndk_libandroid_support",
+}
+
+ndk_prebuilt_static_stl {
+    name: "ndk_libc++abi",
+}
+
+// The LLVM libunwind unwinder. This unwinder is only used for arm32.
+ndk_prebuilt_static_stl {
+    name: "ndk_libunwind",
+    enabled: false,
+    arch: {
+        arm: {
+            enabled: true,
+        },
+    },
+}
+
+ndk_prebuilt_static_stl {
     name: "ndk_libc++_static",
     export_include_dirs: libcxx_includes,
 }
